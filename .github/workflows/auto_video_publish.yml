@@ -1,0 +1,35 @@
+name: Momin Bhai Zero-Cost Story Series (MoneyPrinterTurbo + AI4Bharat/Indic-Parler-TTS)
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # Daily at 6:00 PM (BST / Asia-Dhaka)
+  workflow_dispatch:
+
+jobs:
+  generate-and-publish:
+    runs-on: ubuntu-latest # 100% Free Unlimited Minutes on Public Repositories
+    steps:
+      - name: Checkout Automation Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12 & FFmpeg HD Codecs
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Open-Source Video (harry0703/MoneyPrinterTurbo) & Voice (AI4Bharat/Indic-Parler-TTS)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
+          pip install google-genai edge-tts moviepy faster-whisper google-api-python-client google-auth requests
+          # Optional GitHub Voice Repo Install: pip install git+https://github.com/huggingface/parler-tts.git transformers soundfile
+
+      - name: Render Multi-Part Series (Locked Male Voice + Locked Scene) & Auto-Upload
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_ACCESS_TOKEN: ${{ secrets.YOUTUBE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+        run: python auto_pipeline.py
