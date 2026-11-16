@@ -20,12 +20,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install 2D Cartoon Animation, Multi-Actor Voice & Soundscape Dependencies
+      - name: Install Pro 3D Cinema Animation, Bengali Fonts & Multi-Actor Voice Dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
+          sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick fonts-noto-core fonts-lohit-beng-bengali
           pip install google-genai edge-tts moviepy faster-whisper google-api-python-client google-auth requests pillow numpy soundfile
 
-      - name: Render 5-6 Min Animated Episode (Next Part / New Story) & Auto-Upload
+      - name: Render 5-6 Min Pro 3D Animated Episode (Next Part / New Story) & Auto-Upload
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
