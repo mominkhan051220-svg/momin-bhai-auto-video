@@ -5,6 +5,9 @@ on:
     - cron: '0 18 * * *' # Daily at 6:00 PM (BST / Asia-Dhaka)
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate-and-publish:
     runs-on: ubuntu-latest # 100% Free Unlimited Minutes on Public Repositories
@@ -17,13 +20,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Open-Source Video (harry0703/MoneyPrinterTurbo) & Voice (AI4Bharat/Indic-Parler-TTS)
+      - name: Install 2D Cartoon Animation, Multi-Actor Voice & Soundscape Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
-          pip install google-genai edge-tts moviepy faster-whisper google-api-python-client google-auth requests
-          # Optional GitHub Voice Repo Install: pip install git+https://github.com/huggingface/parler-tts.git transformers soundfile
+          pip install google-genai edge-tts moviepy faster-whisper google-api-python-client google-auth requests pillow numpy soundfile
 
-      - name: Render Multi-Part Series (Locked Male Voice + Locked Scene) & Auto-Upload
+      - name: Render 5-6 Min Animated Episode (Next Part / New Story) & Auto-Upload
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
