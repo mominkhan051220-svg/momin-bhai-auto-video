@@ -326,29 +326,98 @@ def upload_to_youtube(video_path: Path, part_num: int):
     print(f"[YouTube Part {part_num}] Uploaded: https://youtu.be/{response['id']}")
     return response["id"]
 
-def upload_to_facebook_page(video_path: Path, part_num: int):
-    """Uploads Part to Facebook Page 'রহস্যময় ভাই' (ID: 61576363786053) via Graph Video API v21.0 with #Hashtags"""
-    page_id = os.environ.get("FACEBOOK_PAGE_ID", "61576363786053").strip()
-    page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN", "").strip()
-    if not page_id or not page_token:
-        raise RuntimeError("Missing FACEBOOK_PAGE_ID or FACEBOOK_PAGE_ACCESS_TOKEN")
+def resolve_facebook_page_credentials(raw_page_id: str, raw_token: str):
+    """
+    Automatically resolves the real Page Access Token for 'রহস্যময় ভাই' (61576363786053)
+    even if the user pasted a User Access Token from Meta Graph API Explorer!
+    """
+    page_id = (raw_page_id or "61576363786053").strip() or "61576363786053"
+    token = (raw_token or "").strip()
+    if not token:
+        raise RuntimeError("Missing FACEBOOK_PAGE_ACCESS_TOKEN in GitHub Secrets!")
 
-    url = f"https://graph-video.facebook.com/v21.0/{page_id}/videos"
+    # Step 1: Query /me/accounts to see if this is a User Token managing 'রহস্যময় ভাই' (61576363786053)
+    try:
+        acc_res = requests.get(
+            "https://graph.facebook.com/v21.0/me/accounts",
+            params={"fields": "id,name,access_token", "access_token": token},
+            timeout=20,
+        )
+        if acc_res.ok:
+            pages = acc_res.json().get("data", [])
+            if pages:
+                # Match target page_id first, or fall back to the first managed page
+                matched = next((p for p in pages if str(p.get("id")) == page_id), pages[0])
+                resolved_id = str(matched.get("id") or page_id)
+                resolved_token = str(matched.get("access_token") or token)
+                page_name = matched.get("name", "Facebook Page")
+                print(f"[FB Auth] Auto-exchanged User Token -> Page Token for '{page_name}' (ID: {resolved_id})")
+                return resolved_id, resolved_token
+    except Exception as e:
+        print(f"[FB Auth Info] /me/accounts check skipped ({e})")
+
+    # Step 2: Query /{page_id}?fields=access_token,name directly
+    try:
+        pg_res = requests.get(
+            f"https://graph.facebook.com/v21.0/{page_id}",
+            params={"fields": "id,name,access_token", "access_token": token},
+            timeout=20,
+        )
+        if pg_res.ok:
+            pg_data = pg_res.json()
+            if pg_data.get("access_token"):
+                print(f"[FB Auth] Verified Page Token for '{pg_data.get('name', page_id)}' (ID: {page_id})")
+                return str(pg_data.get("id") or page_id), str(pg_data["access_token"])
+    except Exception as e:
+        print(f"[FB Auth Info] /{page_id} token lookup skipped ({e})")
+
+    return page_id, token
+
+def upload_to_facebook_page(video_path: Path, part_num: int, youtube_video_id: str = ""):
+    """Uploads Part to Facebook Page 'রহস্যময় ভাই' (ID: 61576363786053) via Graph Video API v21.0 with #Hashtags"""
+    raw_page_id = os.environ.get("FACEBOOK_PAGE_ID") or "61576363786053"
+    raw_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN") or ""
+    page_id, page_token = resolve_facebook_page_credentials(raw_page_id, raw_token)
+
+    title_text = "গল্প : মায়াজাল | পর্ব 1/4 | মমিন ভাইয়ের রহস্যময় কার্টুন কাহিনি #পর্ব_1 #Part_1 #মমিন_ভাই"
+    caption_text = "গভীর রাতে বাড়ি ফেরার পথে শুরু হলো এক ভয়ংকর ঘটনা… রাস্তার পাশে দেখা এক রহস্যময় ছায়া বদলে দিল সবকিছু। এটা কি কেবল কল্পনা, নাকি সত্যিই কোনো অশুভ শক্তি? দেখুন “মায়াজাল” গল্পের 1 নম্বর পর্ব (মমিন ভাই)।\n🎬 শেষ পর্যন্ত দেখুন — আসল রহস্য এখান থেকেই শুরু।\n\n#পর্ব_1 #Part_1 #মমিন_ভাই #রহস্যময়_কাহিনি #মায়াজাল #bhutergolpo #banglacartoon #banglaanimation #horrorgolpo #atmatoonsbangla"
+
+    # Stage 1: Native MP4 Video Upload to graph-video.facebook.com
+    video_url = f"https://graph-video.facebook.com/v21.0/{page_id}/videos"
     with open(video_path, "rb") as f:
         res = requests.post(
-            url,
+            video_url,
             data={
-                "title": "গল্প : মায়াজাল | পর্ব 1/4 | মমিন ভাইয়ের রহস্যময় কার্টুন কাহিনি #পর্ব_1 #Part_1 #মমিন_ভাই",
-                "description": "গভীর রাতে বাড়ি ফেরার পথে শুরু হলো এক ভয়ংকর ঘটনা… রাস্তার পাশে দেখা এক রহস্যময় ছায়া বদলে দিল সবকিছু। এটা কি কেবল কল্পনা, নাকি সত্যিই কোনো অশুভ শক্তি? দেখুন “মায়াজাল” গল্পের 1 নম্বর পর্ব (মমিন ভাই)।\n🎬 শেষ পর্যন্ত দেখুন — আসল রহস্য এখান থেকেই শুরু।\n\n#পর্ব_1 #Part_1 #মমিন_ভাই #রহস্যময়_কাহিনি #মায়াজাল #bhutergolpo #banglacartoon #banglaanimation #horrorgolpo #atmatoonsbangla",
+                "title": title_text,
+                "description": caption_text,
                 "access_token": page_token,
             },
-            files={"source": f},
+            files={"source": (video_path.name, f, "video/mp4")},
             timeout=300,
         )
-    res.raise_for_status()
-    fb_video_id = res.json().get("id")
-    print(f"[Facebook Page Part {part_num}] Uploaded: https://facebook.com/{page_id}/videos/{fb_video_id}")
-    return fb_video_id
+
+    if res.ok:
+        fb_video_id = res.json().get("id")
+        print(f"[Facebook Page Part {part_num}] Native Video Uploaded: https://facebook.com/{page_id}/videos/{fb_video_id}")
+        return fb_video_id
+
+    print(f"[FB Video API Notice] Status {res.status_code}: {res.text}")
+
+    # Stage 2: Fallback to Facebook Page Feed Post if token has pages_manage_posts but lacks publish_video scope
+    feed_url = f"https://graph.facebook.com/v21.0/{page_id}/feed"
+    yt_link = f"https://youtube.com/shorts/{youtube_video_id}" if youtube_video_id else ""
+    feed_message = f"{title_text}\n\n{caption_text}" + (f"\n\n🎬 ফুল ভিডিও দেখুন: {yt_link}" if yt_link else "")
+    feed_payload = {"message": feed_message, "access_token": page_token}
+    if yt_link:
+        feed_payload["link"] = yt_link
+
+    feed_res = requests.post(feed_url, data=feed_payload, timeout=60)
+    if feed_res.ok:
+        post_id = feed_res.json().get("id")
+        print(f"[Facebook Page Part {part_num}] Published to Page Feed: https://facebook.com/{post_id}")
+        return post_id
+
+    raise RuntimeError(f"Facebook Upload Failed ({res.status_code}): {res.text} | Feed Fallback ({feed_res.status_code}): {feed_res.text}")
 
 if __name__ == "__main__":
     # Render & upload Part 1 on each scheduled run (or set UPLOAD_ALL_PARTS=1 for all parts)
@@ -356,11 +425,14 @@ if __name__ == "__main__":
     for part in range(1, parts_to_run + 1):
         generate_script_with_fallback("মমিন ভাইয়ের রহস্যময় কাহিনি", part)
         video_file = render_part_with_locked_voice_and_scene(part)
+        yt_id = ""
         try:
-            upload_to_youtube(video_file, part)
+            yt_id = upload_to_youtube(video_file, part)
         except Exception as yt_err:
             print(f"[WARN] YouTube upload skipped/failed: {yt_err}")
         try:
-            upload_to_facebook_page(video_file, part)
+            upload_to_facebook_page(video_file, part, yt_id)
         except Exception as fb_err:
-            print(f"[WARN] Facebook Page upload skipped/failed: {fb_err}")
+            print(f"[ERROR] Facebook Page upload failed: {fb_err}")
+            if not yt_id:
+                raise
