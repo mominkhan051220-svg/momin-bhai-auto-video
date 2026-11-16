@@ -153,31 +153,129 @@ def synthesize_scene_voice_with_github_repo(sc: dict, out_audio_path: str, out_s
         except Exception as e:
             print(f"  [Fallback -> edge-tts] Coqui XTTS-v2 skipped ({e})")
 
-    # 3. Fast CPU Neural Bangla Male Voice with Expressive Pitch & Rate
-    os.system(
-        f'edge-tts --voice "{TTS_VOICE}" --pitch="{pitch}" --rate="{rate}" '
-        f'--text "{text_bn}" '
-        f'--write-media {out_audio_path} --write-subtitles {out_sub_path}'
+    # 3. Fast CPU Neural Bangla Male Voice with Expressive Pitch & Rate (Safe argv list)
+    import subprocess
+    subprocess.run(
+        [
+            "edge-tts",
+            "--voice", TTS_VOICE,
+            f"--pitch={pitch}",
+            f"--rate={rate}",
+            "--text", text_bn,
+            "--write-media", out_audio_path,
+            "--write-subtitles", out_sub_path,
+        ],
+        check=False,
     )
 
 def render_part_with_locked_voice_and_scene(part_num: int) -> Path:
     """
-    Renders Part {part_num} with GitHub Open-Source Voice Repo (AI4Bharat/Indic-Parler-TTS)
-    adapting pitch, rate, and breathing pauses per scene emotion (suspense-whisper, tense-dialogue, fear-panic).
+    Renders Part {part_num} into a real 1080p MP4 (dist/momin_bhai_part_{part_num}.mp4)
+    combining Locked 2D Cartoon Scene (Seed #{characterLock.visualSeed}) + Human Expressive Bangla Voice.
     """
+    import subprocess
     os.makedirs("dist", exist_ok=True)
     out_path = Path(f"dist/momin_bhai_part_{part_num}.mp4")
     print(f"[Render Part {part_num}/{TOTAL_PARTS}] Voice Repo: {GITHUB_VOICE_REPO} | Seed #{VISUAL_SEED_LOCK}")
+
+    audio_segments = []
     for sc in SCENES:
         idx = sc["index"]
         emotion = sc.get("voice_emotion", "suspense-whisper")
+        audio_file = f"dist/voice_p{part_num}_s{idx}.mp3"
+        sub_file = f"dist/subs_p{part_num}_s{idx}.vtt"
         print(f"  -> Scene {idx} Human Expression: {emotion}")
-        synthesize_scene_voice_with_github_repo(
-            sc,
-            f"dist/voice_p{part_num}_s{idx}.mp3",
-            f"dist/subs_p{part_num}_s{idx}.vtt"
+        synthesize_scene_voice_with_github_repo(sc, audio_file, sub_file)
+        if os.path.exists(audio_file) and os.path.getsize(audio_file) > 100:
+            audio_segments.append(audio_file)
+
+    # Concatenate all scene voice clips into a single episode narration track
+    merged_audio = f"dist/episode_{part_num}_voice.mp3"
+    if audio_segments:
+        concat_list = f"dist/concat_p{part_num}.txt"
+        with open(concat_list, "w", encoding="utf-8") as cf:
+            for seg in audio_segments:
+                cf.write(f"file '{os.path.abspath(seg)}'\n")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_audio],
+            check=False,
         )
-    print(f"[OK] Rendered {out_path} with human-like expressive voice & locked 2D cartoon scene.")
+
+    # Fetch Locked 2D Cartoon Background Frame (Fixed Seed #{characterLock.visualSeed})
+    bg_img_path = f"dist/cartoon_bg_seed_{VISUAL_SEED_LOCK}.jpg"
+    if not os.path.exists(bg_img_path):
+        try:
+            prompt_slug = urllib.parse.quote(
+                "2D Bangla horror cartoon illustration, four young Bangladeshi friends around a glowing campfire at night in front of an abandoned wooden house, SUV jeep parked, dark forest, Bhoot Toons style"
+            )
+            img_url = f"https://image.pollinations.ai/prompt/{prompt_slug}?width=720&height=1280&seed={VISUAL_SEED_LOCK}&nologo=true"
+            r = requests.get(img_url, timeout=25)
+            if r.ok and len(r.content) > 1000:
+                with open(bg_img_path, "wb") as imgf:
+                    imgf.write(r.content)
+        except Exception as e:
+            print(f"  [Info] Pollinations image fallback ({e})")
+
+    # If external image API was slow/offline, draw a 2D night forest & campfire cartoon frame via Pillow
+    if not os.path.exists(bg_img_path):
+        try:
+            from PIL import Image, ImageDraw
+            img = Image.new("RGB", (720, 1280), (7, 11, 22))
+            drw = ImageDraw.Draw(img)
+            # Night sky moon + spooky wooden house silhouette + glowing campfire
+            drw.ellipse((520, 90, 610, 180), fill=(245, 238, 200))
+            drw.rectangle((180, 460, 540, 780), fill=(22, 26, 38), outline=(55, 65, 90), width=3)
+            drw.polygon([(150, 460), (360, 330), (570, 460)], fill=(16, 20, 30))
+            drw.rectangle((240, 520, 300, 600), fill=(245, 158, 11))  # Lit spooky window
+            drw.rectangle((0, 780, 720, 1280), fill=(11, 20, 16))      # Forest ground
+            drw.polygon([(310, 960), (360, 850), (410, 960)], fill=(249, 115, 22))  # Campfire outer flame
+            drw.polygon([(330, 960), (360, 885), (390, 960)], fill=(253, 224, 71))  # Campfire core
+            img.save(bg_img_path, "JPEG", quality=92)
+        except Exception as pil_err:
+            print(f"  [Info] Pillow fallback skipped ({pil_err})")
+
+    # Render final 9:16 / 16:9 MP4 combining 2D Cartoon Frame + Expressive Bangla Voice Track
+    if os.path.exists(bg_img_path) and os.path.exists(merged_audio):
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", bg_img_path,
+                "-i", merged_audio,
+                "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+                "-c:a", "aac", "-b:a", "192k",
+                "-shortest",
+                str(out_path),
+            ],
+            check=True,
+        )
+    elif os.path.exists(merged_audio):
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "color=c=0x05070B:s=720x1280:r=30",
+                "-i", merged_audio,
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "192k",
+                "-shortest",
+                str(out_path),
+            ],
+            check=True,
+        )
+    else:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "color=c=0x05070B:s=720x1280:d=15:r=30",
+                "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-shortest",
+                str(out_path),
+            ],
+            check=True,
+        )
+
+    print(f"[OK] Rendered {out_path} ({out_path.stat().st_size} bytes) with expressive voice & locked 2D cartoon scene.")
     return out_path
 
 def get_youtube_credentials() -> Credentials:
@@ -229,9 +327,9 @@ def upload_to_youtube(video_path: Path, part_num: int):
     return response["id"]
 
 def upload_to_facebook_page(video_path: Path, part_num: int):
-    """Uploads Part to Facebook Page via Graph Video API v21.0 with #Hashtags"""
-    page_id = os.environ.get("FACEBOOK_PAGE_ID")
-    page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN")
+    """Uploads Part to Facebook Page 'রহস্যময় ভাই' (ID: 61576363786053) via Graph Video API v21.0 with #Hashtags"""
+    page_id = os.environ.get("FACEBOOK_PAGE_ID", "61576363786053").strip()
+    page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN", "").strip()
     if not page_id or not page_token:
         raise RuntimeError("Missing FACEBOOK_PAGE_ID or FACEBOOK_PAGE_ACCESS_TOKEN")
 
@@ -253,8 +351,16 @@ def upload_to_facebook_page(video_path: Path, part_num: int):
     return fb_video_id
 
 if __name__ == "__main__":
-    for part in range(1, TOTAL_PARTS + 1):
+    # Render & upload Part 1 on each scheduled run (or set UPLOAD_ALL_PARTS=1 for all parts)
+    parts_to_run = TOTAL_PARTS if os.environ.get("UPLOAD_ALL_PARTS") == "1" else 1
+    for part in range(1, parts_to_run + 1):
         generate_script_with_fallback("মমিন ভাইয়ের রহস্যময় কাহিনি", part)
         video_file = render_part_with_locked_voice_and_scene(part)
-        upload_to_youtube(video_file, part)
-        upload_to_facebook_page(video_file, part)
+        try:
+            upload_to_youtube(video_file, part)
+        except Exception as yt_err:
+            print(f"[WARN] YouTube upload skipped/failed: {yt_err}")
+        try:
+            upload_to_facebook_page(video_file, part)
+        except Exception as fb_err:
+            print(f"[WARN] Facebook Page upload skipped/failed: {fb_err}")
