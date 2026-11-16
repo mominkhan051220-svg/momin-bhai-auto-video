@@ -169,7 +169,11 @@ def fetch_already_uploaded_titles() -> list[str]:
             for it in pl_res.get("items", []):
                 titles.append(it["snippet"].get("title", ""))
     except Exception as e:
-        print(f"[State Check] YouTube history lookup info: {e}")
+        err_str = str(e)
+        if "insufficientPermissions" in err_str or "403" in err_str:
+            print("[State Check] YouTube token is upload-only (youtube.upload scope); using series_state.json + Facebook history instead.")
+        else:
+            print(f"[State Check] YouTube history lookup info: {e}")
 
     # Check Facebook Page recent videos/posts
     try:
@@ -699,7 +703,10 @@ def load_bengali_font(size: int):
                 return ImageFont.truetype(fp, size=size)
             except Exception:
                 pass
-    return ImageFont.load_default()
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 def get_pro_3d_prompts_for_act(act_obj: dict, story: dict, part_num: int) -> tuple[str, str]:
     """
@@ -802,7 +809,7 @@ def generate_pro_3d_scene_image(prompt: str, seed: int, W: int, H: int, out_path
     g = np.clip(18 + 38 * (1.0 - ny) + 85 * np.exp(-((nx - 0.45) ** 2 + (ny - 0.65) ** 2) / 0.035), 0, 255)
     b = np.clip(38 + 52 * (1.0 - ny) + 25 * np.exp(-((nx - 0.45) ** 2 + (ny - 0.65) ** 2) / 0.03), 0, 255)
     arr = np.stack([r, g, b], axis=-1).astype(np.uint8)
-    fallback_img = Image.fromarray(arr, mode="RGB").filter(ImageFilter.GaussianBlur(radius=1.5))
+    fallback_img = Image.fromarray(arr).filter(ImageFilter.GaussianBlur(radius=1.5))
     fallback_img.save(out_path, quality=92)
     return fallback_img
 
@@ -928,14 +935,14 @@ def render_pro_3d_animated_act(
 
         crop_w = int(W / zoom)
         crop_h = int(H / zoom)
-        max_dx = max(1, W - crop_w)
-        max_dy = max(1, H - crop_h)
+        max_dx = max(0, W - crop_w)
+        max_dy = max(0, H - crop_h)
         cx0 = int(np.clip((W - crop_w) * 0.5 + pan_x * W, 0, max_dx))
         cy0 = int(np.clip((H - crop_h) * 0.5 + pan_y * H, 0, max_dy))
 
         # Fast 2.5D slice & resize with subtle foreground/background parallax shift
         cropped_patch = base_arr[cy0 : cy0 + crop_h, cx0 : cx0 + crop_w].astype(np.uint8)
-        frame_img = Image.fromarray(cropped_patch, mode="RGB").resize((W, H), Image.Resampling.BILINEAR)
+        frame_img = Image.fromarray(cropped_patch).resize((W, H), Image.Resampling.BILINEAR)
         frame_arr = np.asarray(frame_img, dtype=np.float32)
 
         # 3. Real-Time Volumetric 3D Mist / Rolling Fog Shader (C.K Animation & Aria09ai Atmosphere)
@@ -961,7 +968,7 @@ def render_pro_3d_animated_act(
         if env_type in ("forest_walk", "wooden_corridor", "shadow_chase", "cliffhanger_outro"):
             beam_angle = 0.18 * math.sin(t * 2.1)
             beam_line = (ny - 0.58) - beam_angle * (nx - 0.25)
-            beam_cone = np.exp(-(beam_line ** 2) / max(0.004, 0.025 * (nx + 0.1))) * np.clip(nx - 0.15, 0.0, 1.0) * 0.26
+            beam_cone = np.exp(-(beam_line ** 2) / np.maximum(0.004, 0.025 * (nx + 0.1))) * np.clip(nx - 0.15, 0.0, 1.0) * 0.26
             beam_col = np.array([254.0, 243.0, 175.0], dtype=np.float32)
             frame_arr = np.clip(frame_arr + beam_col * beam_cone[..., None], 0.0, 255.0)
 
@@ -970,7 +977,7 @@ def render_pro_3d_animated_act(
             frame_arr = np.clip(frame_arr * 1.35 + np.array([45.0, 65.0, 110.0], dtype=np.float32), 0.0, 255.0)
 
         # Convert back to PIL Image for 3D Bokeh Particles & C.K Animation Gold Cinema Banners
-        final_img = Image.fromarray(frame_arr.astype(np.uint8), mode="RGB")
+        final_img = Image.fromarray(frame_arr.astype(np.uint8))
         drw = ImageDraw.Draw(final_img)
 
         # 7. Rising 3D Glowing Bokeh Embers & Fireflies
