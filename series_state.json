@@ -1,11 +1,12 @@
 {
-  "story_index": 0,
-  "part_num": 4,
+  "story_index": 1,
+  "part_num": 1,
   "last_uploaded_story": "মায়াজাল",
-  "last_uploaded_part": 3,
-  "updated_at": "2026-11-16T03:15:20Z",
+  "last_uploaded_part": 4,
+  "updated_at": "2026-11-17T01:42:39Z",
   "completed_episodes": [
     "mayajaal_p2",
-    "mayajaal_p3"
+    "mayajaal_p3",
+    "mayajaal_p4"
   ]
 }
