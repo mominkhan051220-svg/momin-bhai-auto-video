@@ -1,12 +1,13 @@
 {
   "story_index": 1,
-  "part_num": 1,
-  "last_uploaded_story": "মায়াজাল",
-  "last_uploaded_part": 4,
-  "updated_at": "2026-11-17T01:42:39Z",
+  "part_num": 2,
+  "last_uploaded_story": "অভিশপ্ত জমিদার বাড়ি",
+  "last_uploaded_part": 1,
+  "updated_at": "2026-11-18T00:39:25Z",
   "completed_episodes": [
     "mayajaal_p2",
     "mayajaal_p3",
-    "mayajaal_p4"
+    "mayajaal_p4",
+    "zamindar_bari_p1"
   ]
 }
