@@ -1,9 +1,9 @@
 {
   "story_index": 2,
-  "part_num": 3,
+  "part_num": 4,
   "last_uploaded_story": "সুন্দরবনের গহীনে নিশির ডাক",
-  "last_uploaded_part": 2,
-  "updated_at": "2026-11-22T23:23:24Z",
+  "last_uploaded_part": 3,
+  "updated_at": "2026-11-24T03:58:11Z",
   "completed_episodes": [
     "mayajaal_p2",
     "mayajaal_p3",
@@ -13,6 +13,7 @@
     "zamindar_bari_p3",
     "zamindar_bari_p4",
     "sundarban_nishi_p1",
-    "sundarban_nishi_p2"
+    "sundarban_nishi_p2",
+    "sundarban_nishi_p3"
   ]
 }
